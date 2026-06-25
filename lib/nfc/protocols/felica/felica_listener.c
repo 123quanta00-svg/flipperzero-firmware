@@ -182,7 +182,7 @@ static bool felica_listener_check_system_code(
 static uint16_t felica_listener_get_response_system_code(
     FelicaListener* instance,
     const FelicaListenerGenericRequest* const generic_request) {
-    uint16_t resp_system_code = FELICA_SYSTEM_CODE_CODE;
+    uint16_t resp_system_code = 0x8008;
     if(felica_listener_check_system_code(generic_request, FELICA_LISTENER_SYSTEM_CODE_NDEF) &&
        instance->data->data.fs.mc.data[FELICA_MC_SYS_OP] == 1) {
         // NDEF
