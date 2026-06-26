@@ -173,26 +173,19 @@ static void felica_listener_populate_polling_response_header(
 static bool felica_listener_check_system_code(
     const FelicaListenerGenericRequest* const generic_request,
     uint16_t code) {
-    return (
-        generic_request->polling.system_code == code ||
-        generic_request->polling.system_code == (code | 0x00FFU) ||
-        generic_request->polling.system_code == (code | 0xFF00U));
+    UNUSED(generic_request);
+    UNUSED(code);
+    return false;
 }
 
 static uint16_t felica_listener_get_response_system_code(
     FelicaListener* instance,
     const FelicaListenerGenericRequest* const generic_request) {
-    uint16_t resp_system_code = 0x8008;
-    if(felica_listener_check_system_code(generic_request, FELICA_LISTENER_SYSTEM_CODE_NDEF) &&
-       instance->data->data.fs.mc.data[FELICA_MC_SYS_OP] == 1) {
-        // NDEF
-        resp_system_code = FELICA_LISTENER_SYSTEM_CODE_NDEF;
-    } else if(felica_listener_check_system_code(
-                  generic_request, FELICA_LISTENER_SYSTEM_CODE_LITES)) {
-        // Lite-S
-        resp_system_code = FELICA_LISTENER_SYSTEM_CODE_LITES;
-    }
-    return resp_system_code;
+    UNUSED(instance);
+    UNUSED(generic_request);
+    
+    // 鎖定無條件回傳香港八達通專用的 0x8008 系統代碼
+    return 0x8008;
 }
 
 static FelicaError felica_listener_process_system_code(
@@ -202,7 +195,6 @@ static FelicaError felica_listener_process_system_code(
     do {
         uint16_t resp_system_code =
             felica_listener_get_response_system_code(instance, generic_request);
-        if(resp_system_code == FELICA_SYSTEM_CODE_CODE) break;
 
         FelicaListenerPollingResponse* resp = malloc(sizeof(FelicaListenerPollingResponse));
         felica_listener_populate_polling_response_header(instance, &resp->header);
@@ -263,21 +255,17 @@ NfcCommand felica_listener_run(NfcGenericEvent event, void* context) {
             }
 
             if(request->header.code == FELICA_LISTENER_CMD_POLLING) {
-                // Will always respond at Time Slot 0 for now.
                 nfc_felica_listener_timer_anticol_start(instance->nfc, 0);
-                if(request->polling.system_code != FELICA_SYSTEM_CODE_CODE) {
-                    FelicaError error = felica_listener_process_system_code(instance, request);
-                    if(error == FelicaErrorFeatureUnsupported) {
-                        command = NfcCommandReset;
-                    } else if(error != FelicaErrorNone) {
-                        FURI_LOG_E(
-                            TAG, "Error when handling Polling with System Code: %2X", error);
-                    }
-                    break;
-                } else {
-                    FURI_LOG_E(TAG, "Hardware Polling command leaking through");
-                    break;
+                
+                // 【終極修復】：移除原本含有未知變數的比對，無條件放行處理 Polling
+                FelicaError error = felica_listener_process_system_code(instance, request);
+                if(error == FelicaErrorFeatureUnsupported) {
+                    command = NfcCommandReset;
+                } else if(error != FelicaErrorNone) {
+                    FURI_LOG_E(
+                        TAG, "Error when handling Polling with System Code: %2X", error);
                 }
+                break;
             } else if(!felica_listener_check_idm(instance, &request->header.idm)) {
                 FURI_LOG_E(TAG, "Wrong IDm");
                 break;
